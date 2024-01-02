@@ -51,5 +51,5 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-//无视build目录
+//无视目录,以及该目录下所有文件
 build*/
