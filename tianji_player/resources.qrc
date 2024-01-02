@@ -7,5 +7,6 @@
         <file alias="音量">icon/sound.png</file>
         <file alias="暂停">icon/pause.png</file>
         <file>icon/logo.jpg</file>
+        <file>icon/lyrics_background.jpg</file>
     </qresource>
 </RCC>

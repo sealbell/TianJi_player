@@ -3,6 +3,7 @@
 
 #include <QWidget>
 
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }
 QT_END_NAMESPACE
@@ -14,6 +15,17 @@ class Widget : public QWidget
 public:
     Widget(QWidget *parent = nullptr);
     ~Widget();
+
+    // 函数声明
+
+private slots:
+    void on_previous_btn_clicked();
+
+    void on_control_btn_clicked();
+
+    void on_next_btn_clicked();
+
+    void on_sound_btn_clicked();
 
 private:
     Ui::Widget *ui;

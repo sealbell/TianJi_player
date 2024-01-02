@@ -17,9 +17,11 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     main.cpp \
+    playercontroller.cpp \
     widget.cpp
 
 HEADERS += \
+    playercontroller.h \
     widget.h
 
 FORMS += \
