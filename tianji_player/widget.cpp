@@ -34,8 +34,7 @@ Widget::Widget(QWidget *parent)
     int fd_fifo_cmd;
     pid_t pid;
     const char* fifo_cmd = "./fifo_cmd";
-
-
+    cmd = (char*)calloc(1024,sizeof (char));
 
     // 创建有名管道
     mkfifo(fifo_cmd, 0666);
@@ -188,4 +187,20 @@ void Widget::updateTimeUI(QString time) {
     // 在这里更新 UI
     // 例如：ui->currentTimeLabel->setText(time);
     ui->current_time->setText(time);
+}
+
+void Widget::on_control_btn_clicked()
+{
+    if(btn_status == 0){
+        ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/播放)}");
+        btn_status = 1;
+    }
+    else{
+        ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
+        btn_status = 0;
+    }
+    strcpy(cmd,"pause\n");
+    write(fifo_fd,cmd,strlen(cmd));
+    printf("%s",cmd);
+    fflush(stdout);
 }

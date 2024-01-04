@@ -58,11 +58,15 @@ private slots:
 
     void updateTimeUI(QString time);
 
+    void on_control_btn_clicked();
+
 private:
     Ui::Widget *ui;
+    int btn_status = 0;// 按钮状态  1 暂停 0 播放
     int fifo_fd; // 用于有名管道的文件描述符
     pthread_t timeThread; // 用于更新时间的线程
-    int fd_pip[2];
+    int fd_pip[2]; // 用于无名管道的文件描述符
+    char *cmd;
 };
 
 
