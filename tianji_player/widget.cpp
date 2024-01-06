@@ -52,64 +52,56 @@ Widget::Widget(QWidget *parent)
         exit(1);
      }
 
-        if (pid == 0) { // 子进程
-            // 关闭无名管道的读端
-            ::close(fd_pip[0]);
+     if (pid == 0) { // 子进程
+        // 关闭无名管道的读端
+        ::close(fd_pip[0]);
 
-            // 打开有名管道的读端
-            fd_fifo_cmd = open(fifo_cmd, O_RDONLY);
-            if (fd_fifo_cmd == -1) {
-                perror("open");
-                exit(1);
-            }
-
-            // 重定向标准输入到有名管道
-            dup2(fd_fifo_cmd, 0);
-            ::close(fd_fifo_cmd);
-
-            // 重定向标准输出到无名管道的写端
-            dup2(fd_pip[1], 1);
-            ::close(fd_pip[1]);
-
-            // 执行 mplayer
-            execlp("mplayer", "mplayer", "-slave", "-quiet", "-idle", NULL);
-            perror("execlp");
+        // 打开有名管道的读端
+        fd_fifo_cmd = open(fifo_cmd, O_RDONLY);
+        if (fd_fifo_cmd == -1) {
+            perror("open");
             exit(1);
-        } else { // 父进程
-            ch_id = pid;
-
-            // 关闭无名管道的写端
-            //::close(fd_pip[1]);
-
-            // 打开有名管道
-            fifo_fd = open("./fifo_cmd", O_WRONLY);
-            if (fifo_fd == -1) {
-                perror("open");
-                exit(1);
-            }
-
-            // 此处可以通过 fd_fifo_cmd 写入命令到 mplayer
-            // 通过 fd_pip[0] 读取 mplayer 的输出
-
-            // 创建线程
-            pthread_create(&timeThread, NULL, updateTimeThread, this);
-
-            // 连接信号和槽
-            connect(this, &Widget::updateTimeSignal, this, &Widget::updateTimeUI);
-
-            // 等待子进程结束
-            //wait(NULL);
-
-            // 清理资源
-            //::close(fd_pip[0]);
-            //unlink(fifo_cmd);
         }
 
+        // 重定向标准输入到有名管道
+        dup2(fd_fifo_cmd, 0);
+        ::close(fd_fifo_cmd);
+
+        // 重定向标准输出到无名管道的写端
+        dup2(fd_pip[1], 1);
+        ::close(fd_pip[1]);
+
+        // 执行 mplayer
+        execlp("mplayer", "mplayer", "-slave", "-quiet", "-idle", NULL);
+        perror("execlp");
+        exit(1);
+    } else { // 父进程
+        ch_id = pid;
+
+        // 关闭无名管道的写端
+        //::close(fd_pip[1]);
+
+        // 打开有名管道
+        fifo_fd = open("./fifo_cmd", O_WRONLY);
+        if (fifo_fd == -1) {
+            perror("open");
+            exit(1);
+        }
+
+        // 此处可以通过 fd_fifo_cmd 写入命令到 mplayer
+        // 通过 fd_pip[0] 读取 mplayer 的输出
+
+        // 创建线程
+        pthread_create(&timeThread, NULL, updateTimeThread, this);
+
+        // 连接信号和槽
+        connect(this, &Widget::updateTimeSignal, this, &Widget::updateTimeUI);
+        connect(this,&Widget::songChanged,this,&Widget::updateTotalTimeUI);
+        connect(this,&Widget::setMaximumSignal,this,&Widget::set_song_progress_Maximum);
+        connect(this,&Widget::progressChanged,this,&Widget::on_song_progress_changed);
 
 
-
-
-
+    }
 }
 
 Widget::~Widget()
@@ -154,11 +146,16 @@ void Widget::on_song_list_clicked(const QModelIndex &index)
 
     char* cmd = command.toUtf8().data();
     // 向有名管道写入命令
+    fifoMutex.lock();
+    clearPipe(fd_pip[0]);
     write(fifo_fd, cmd, strlen(cmd));
+    fifoMutex.unlock();
 
     // 处理选中的文件，例如播放音乐
     printf("%s",cmd);
     fflush(stdout);
+
+    emit songChanged();
 }
 
 void* Widget::updateTimeThread(void* arg) {
@@ -178,7 +175,7 @@ void* Widget::updateTimeThread(void* arg) {
         widget->pauseMutex.unlock();
         // 向 MPlayer 发送获取时间的指令
         widget->fifoMutex.lock();
-
+        widget->clearPipe(widget->fd_pip[0]);
         write(widget->fifo_fd, "get_time_pos\n", strlen("get_time_pos\n"));
 
         // 从管道读取 MPlayer 的响应
@@ -195,9 +192,14 @@ void* Widget::updateTimeThread(void* arg) {
             if (timePos != -1) {
                 QString timeStr = response.mid(timePos + 18).split("\n")[0];
                 float timeVal = timeStr.toFloat();
+
+                emit widget->progressChanged((int)timeVal);
+
                 int minutes = static_cast<int>(timeVal) / 60;
                 int seconds = static_cast<int>(timeVal) % 60;
-                QString formattedTime = QString("%1:%2").arg(minutes, 2, 10, QLatin1Char('0')).arg(seconds, 2, 10, QLatin1Char('0'));
+                QString formattedTime = QString("%1:%2")
+                        .arg(minutes, 2, 10, QLatin1Char('0'))
+                        .arg(seconds, 2, 10, QLatin1Char('0'));
 
             // 发射信号以更新UI
             emit widget->updateTimeSignal(formattedTime);
@@ -206,6 +208,43 @@ void* Widget::updateTimeThread(void* arg) {
         sleep(1); // 每秒更新一次
     }
     return NULL;
+}
+
+int Widget::parseTotalTime(const QString &response)
+{
+    //MPlayer的响应格式为"ANS_LENGTH=duration"
+    QRegExp regex("ANS_LENGTH=(\\d+\\.\\d+)");
+    if(regex.indexIn(response) != -1){
+        //将持续时间字符串转换为浮点，然后转换为int
+        return static_cast<int>(regex.cap(1).toFloat());
+    }
+    return 0;
+}
+
+QString Widget::formatTime(int totalSeconds)
+{
+    int minutes = totalSeconds / 60;
+    int seconds = totalSeconds % 60;
+
+    return QString("%1:%2")
+            .arg(minutes,2,10,QChar('0'))
+            .arg(seconds,2,10,QChar('0'));
+}
+
+void Widget::clearPipe(int pipefd)
+{
+    // 设置管道为非阻塞模式
+    int flags = fcntl(pipefd, F_GETFL, 0);
+    fcntl(pipefd, F_SETFL, flags | O_NONBLOCK);
+
+    // 清空管道
+    char buffer[1024];
+    while (read(pipefd, buffer, sizeof(buffer)) > 0) {
+        // 继续读取直到没有更多数据
+    }
+
+    // 恢复管道为阻塞模式（如果需要）
+    fcntl(pipefd, F_SETFL, flags);
 }
 
 void Widget::updateTimeUI(QString time) {
@@ -232,11 +271,178 @@ void Widget::on_control_btn_clicked()
         pauseThreads = 0;
         pauseMutex.unlock();
     }
-    strcpy(cmd,"pause\n");
-
     fifoMutex.lock();
+
+    strcpy(cmd,"pause\n");
+    clearPipe(fd_pip[0]);
     write(fifo_fd,cmd,strlen(cmd));
     fifoMutex.unlock();
     printf("%s",cmd);
     fflush(stdout);
 }
+
+void Widget::on_previous_btn_clicked()
+{
+    int currentRow = ui->song_list->currentIndex().row();
+    if (currentRow <= 0) return;  // 没有播放音乐或已是第一首歌
+
+    // 选择上一首歌
+    QModelIndex previousIndex = ui->song_list->model()->index(currentRow - 1, 0);
+    ui->song_list->setCurrentIndex(previousIndex);
+
+    // 获取歌曲路径并播放
+    QString selectedFile = ui->song_list->model()->data(previousIndex, Qt::DisplayRole).toString();
+    QString command = "loadfile " + QDir("../song").absoluteFilePath(selectedFile) + "\n";
+
+    //strcpy(cmd,command.toUtf8().constData());
+    fifoMutex.lock();
+    clearPipe(fd_pip[0]);
+    write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
+    fifoMutex.unlock();
+
+    printf("%s",command.toUtf8().constData());
+    fflush(stdout);
+
+    emit songChanged();
+}
+
+void Widget::on_next_btn_clicked()
+{
+    int currentRow = ui->song_list->currentIndex().row();
+    int totalRows = ui->song_list->model()->rowCount();
+    if (currentRow < 0 || currentRow >= totalRows - 1) return;  // 没有播放音乐或已是最后一首歌
+
+    // 选择下一首歌
+    QModelIndex nextIndex = ui->song_list->model()->index(currentRow + 1, 0);
+    ui->song_list->setCurrentIndex(nextIndex);
+
+    // 获取歌曲路径并播放
+    QString selectedFile = ui->song_list->model()->data(nextIndex, Qt::DisplayRole).toString();
+    QString command = "loadfile " + QDir("../song").absoluteFilePath(selectedFile) + "\n";
+
+    fifoMutex.lock();
+    write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
+    fifoMutex.unlock();
+
+    printf("%s",command.toUtf8().constData());
+    fflush(stdout);
+
+    emit songChanged();
+}
+
+void Widget::updateTotalTimeUI()
+{
+    const char* command = "get_time_length\n";
+    QString response;
+    int tryCount = 0;
+    const int maxTries = 10; // 重试次数上限
+
+    while (tryCount < maxTries) {
+        fifoMutex.lock();
+        clearPipe(fd_pip[0]); // 清空管道中的信息
+        write(fifo_fd, command, strlen(command));
+
+        char buffer[1024];
+        ssize_t nbytes = read(fd_pip[0], buffer, sizeof(buffer) - 1);
+        fifoMutex.unlock();
+
+        if (nbytes > 0) {
+            buffer[nbytes] = '\0';
+            response = QString(buffer);
+            if (response.contains("ANS_LENGTH=")) {
+                break; // 成功获取到响应
+            }
+        }
+
+        tryCount++;
+        sleep(1); // 短暂等待再次尝试
+    }
+
+    if (!response.isEmpty()) {
+        int totalTime = parseTotalTime(response); // 解析时长
+        emit setMaximumSignal(totalTime);
+        QString formattedTime = formatTime(totalTime); // 格式化时长
+        ui->all_time->setText(formattedTime); // 更新 UI
+    }
+}
+
+void Widget::on_sound_btn_clicked()
+{
+    const char *command = NULL;
+    // 检查当前是否已经静音
+    if (isMuted) {
+        // 如果已经静音，取消静音并更改按钮样式
+        ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/音量); }");
+        command = "mute 0\n"; // 发送取消静音命令
+        isMuted = false;
+    } else {
+        // 如果未静音，设置静音并更改按钮样式
+        ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/静音); }");
+        command = "mute 1\n"; // 发送静音命令
+        isMuted = true;
+    }
+    fifoMutex.lock();
+    clearPipe(fd_pip[0]);
+    write(fifo_fd, command, strlen(command)); // 向管道发送命令
+    fifoMutex.unlock();
+}
+
+void Widget::on_sound_slider_valueChanged(int value)
+{
+    // 发送音量调整命令
+    QString command = QString("volume %1 1\n").arg(value);
+
+    fifoMutex.lock();
+    clearPipe(fd_pip[0]);
+    write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
+    fifoMutex.unlock();
+
+    // 根据音量值更改按钮图标
+    if (value == 0) {
+        // 静音
+        ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/静音); }");
+        isMuted = true;
+    } else {
+        // 非静音
+        ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/音量); }");
+        isMuted = false;
+    }
+}
+
+void Widget::on_song_progress_sliderReleased()
+{
+    // 获取滑块当前位置
+    int value = ui->song_progress->value();
+    // 计算对应的时间
+    QString command = QString("seek %1 2\n").arg(value);
+
+    // 发送命令
+    fifoMutex.lock();
+    clearPipe(fd_pip[0]);
+    write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
+    fifoMutex.unlock();
+}
+
+void Widget::set_song_progress_Maximum(int maxvalue)
+{
+    ui->song_progress->setMaximum(maxvalue);
+}
+
+void Widget::on_song_progress_changed(int newPosition)
+{
+        ui->song_progress->setValue(newPosition); // 更新滑动条位置
+        //QString command = QString("seek %1 2\n").arg(newPosition); // 发送新位置命令
+        //fifoMutex.lock();
+        //clearPipe(fd_pip[0]);
+        //write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
+        //fifoMutex.unlock();
+}
+
+
+
+
+
+
+
+
+

@@ -40,6 +40,12 @@ public:
 
     static void* updateTimeThread(void* arg);
 
+    int parseTotalTime(const QString &response);
+
+    QString formatTime(int totalSeconds);
+
+    void clearPipe(int pipefd);
+
 //    // 函数声明
 //    QStringListModel *show_music_list(Widget *widget);
 //    friend void *get_time(void *arg);
@@ -47,12 +53,11 @@ public:
 signals:
     void updateTimeSignal(QString time);
 
+    void songChanged();
 
+    void setMaximumSignal(int maxvalue);
 
-public slots:
-
-
-
+    void progressChanged(int newPosition);
 
 private slots:
     void on_song_list_clicked(const QModelIndex &index);
@@ -60,6 +65,22 @@ private slots:
     void updateTimeUI(QString time);
 
     void on_control_btn_clicked();
+
+    void on_previous_btn_clicked();
+
+    void on_next_btn_clicked();
+
+    void updateTotalTimeUI();
+
+    void on_sound_btn_clicked();
+
+    void on_sound_slider_valueChanged(int value);
+
+    void on_song_progress_sliderReleased();
+
+    void set_song_progress_Maximum(int maxvalue);
+
+    void on_song_progress_changed(int newPosition);
 
 private:
     Ui::Widget *ui;
@@ -71,6 +92,7 @@ private:
     pthread_t timeThread; // 用于更新时间的线程
     int fd_pip[2]; // 用于无名管道的文件描述符
     char *cmd;
+    bool isMuted = false;//静音按钮
 };
 
 
