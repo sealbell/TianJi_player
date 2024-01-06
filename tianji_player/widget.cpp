@@ -136,6 +136,15 @@ QStringListModel *show_music_list(Widget *widget){
 
 void Widget::on_song_list_clicked(const QModelIndex &index)
 {
+    //修改为播放状态
+    pauseMutex.lock();
+    pauseThreads = 0;
+    pauseMutex.unlock();
+    //将按钮变为暂停按钮
+    btn_status = 1;
+    ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
+    ui->control_btn->setToolTip("暂停");
+
     QString selectedFile = model->data(index, Qt::DisplayRole).toString();
     // 移除引号
     selectedFile.remove('\"');
@@ -156,11 +165,27 @@ void* Widget::updateTimeThread(void* arg) {
     Widget* widget = static_cast<Widget*>(arg);
     char buffer[1024];
     while (true) {
+        //将互斥锁锁住，防止冲突
+        widget->pauseMutex.lock();
+        //判断共享状态变量
+        if(widget->pauseThreads){
+            //解锁
+            widget->pauseMutex.unlock();
+            //挂起一段时间，防止快速循环
+            sleep(1);
+            continue;
+        }
+        widget->pauseMutex.unlock();
         // 向 MPlayer 发送获取时间的指令
+        widget->fifoMutex.lock();
+
         write(widget->fifo_fd, "get_time_pos\n", strlen("get_time_pos\n"));
 
         // 从管道读取 MPlayer 的响应
         int nbytes = read(widget->fd_pip[0], buffer, sizeof(buffer) - 1);
+
+        widget->fifoMutex.unlock();
+
         if (nbytes > 0) {
             buffer[nbytes] = '\0';
 
@@ -191,16 +216,27 @@ void Widget::updateTimeUI(QString time) {
 
 void Widget::on_control_btn_clicked()
 {
-    if(btn_status == 0){
+    if(btn_status == 1){
         ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/播放)}");
-        btn_status = 1;
+        ui->control_btn->setToolTip("播放");
+        btn_status = 0;
+        pauseMutex.lock();
+        pauseThreads = 1;
+        pauseMutex.unlock();
     }
     else{
         ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
-        btn_status = 0;
+        ui->control_btn->setToolTip("暂停");
+        btn_status = 1;
+        pauseMutex.lock();
+        pauseThreads = 0;
+        pauseMutex.unlock();
     }
     strcpy(cmd,"pause\n");
+
+    fifoMutex.lock();
     write(fifo_fd,cmd,strlen(cmd));
+    fifoMutex.unlock();
     printf("%s",cmd);
     fflush(stdout);
 }

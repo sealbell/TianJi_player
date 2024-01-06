@@ -6,6 +6,7 @@
 #include <QStringListModel>
 #include <QDebug>
 #include <QString>
+#include <QMutex>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -62,6 +63,9 @@ private slots:
 
 private:
     Ui::Widget *ui;
+    bool pauseThreads;// 共享状态变量
+    QMutex pauseMutex;// 共享状态互斥锁互斥锁
+    QMutex fifoMutex;// 管道互斥锁
     int btn_status = 0;// 按钮状态  1 暂停 0 播放
     int fifo_fd; // 用于有名管道的文件描述符
     pthread_t timeThread; // 用于更新时间的线程
