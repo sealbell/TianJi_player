@@ -437,6 +437,15 @@ void Widget::on_sound_slider_valueChanged(int value)
 
 void Widget::on_song_progress_sliderReleased()
 {
+    //修改为播放状态
+    pauseMutex.lock();
+    pauseThreads = 0;
+    pauseMutex.unlock();
+    //将按钮变为暂停按钮
+    btn_status = 1;
+    ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
+    ui->control_btn->setToolTip("暂停");
+
     // 获取滑块当前位置
     int value = ui->song_progress->value();
     // 计算对应的时间
