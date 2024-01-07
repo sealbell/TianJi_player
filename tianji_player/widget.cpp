@@ -96,11 +96,15 @@ Widget::Widget(QWidget *parent)
 
         // 连接信号和槽
         connect(this, &Widget::updateTimeSignal, this, &Widget::updateTimeUI);
-        connect(this,&Widget::songChanged,this,&Widget::updateTotalTimeUI);
-        connect(this,&Widget::setMaximumSignal,this,&Widget::set_song_progress_Maximum);
-        connect(this,&Widget::progressChanged,this,&Widget::on_song_progress_changed);
+        connect(this, &Widget::songChanged, this, &Widget::updateTotalTimeUI);
+        connect(this, &Widget::setMaximumSignal, this, &Widget::set_song_progress_Maximum);
+        connect(this, &Widget::progressChanged, this, &Widget::on_song_progress_changed);
+        connect(this, &Widget::loadLyricsSignal, this, &Widget::load_lyrics);
+        connect(this, &Widget::updateLyricsDisplaySignal, this, &Widget::update_lyrics_dispaly);
 
-
+        ui->frame_3->setStyleSheet("background-image: url(:/icon/icon/lyrics_background.jpg);");
+        ui->lyrics_list->setStyleSheet("background: transparent;");
+        ui->lyrics_list->setAttribute(Qt::WA_TranslucentBackground);
     }
 }
 
@@ -143,6 +147,13 @@ void Widget::on_song_list_clicked(const QModelIndex &index)
 
     // 构建 mplayer 的播放命令
     QString command = "loadfile " + QDir("../song").absoluteFilePath(selectedFile) + "\n";
+
+    // 获取命令中的文件名
+    QFileInfo fileInfo(command);
+    // 去除其后缀名
+    QString songName = fileInfo.baseName();
+    // 发送信号查找其歌词文件
+    emit loadLyricsSignal(songName);
 
     char* cmd = command.toUtf8().data();
     // 向有名管道写入命令
@@ -194,6 +205,7 @@ void* Widget::updateTimeThread(void* arg) {
                 float timeVal = timeStr.toFloat();
 
                 emit widget->progressChanged((int)timeVal);
+                emit widget->updateLyricsDisplaySignal((int)timeVal);
 
                 int minutes = static_cast<int>(timeVal) / 60;
                 int seconds = static_cast<int>(timeVal) % 60;
@@ -294,6 +306,13 @@ void Widget::on_previous_btn_clicked()
     QString selectedFile = ui->song_list->model()->data(previousIndex, Qt::DisplayRole).toString();
     QString command = "loadfile " + QDir("../song").absoluteFilePath(selectedFile) + "\n";
 
+    // 获取命令中的文件名
+    QFileInfo fileInfo(command);
+    // 去除其后缀名
+    QString songName = fileInfo.baseName();
+    // 发送信号查找其歌词文件
+    emit loadLyricsSignal(songName);
+
     //strcpy(cmd,command.toUtf8().constData());
     fifoMutex.lock();
     clearPipe(fd_pip[0]);
@@ -319,6 +338,13 @@ void Widget::on_next_btn_clicked()
     // 获取歌曲路径并播放
     QString selectedFile = ui->song_list->model()->data(nextIndex, Qt::DisplayRole).toString();
     QString command = "loadfile " + QDir("../song").absoluteFilePath(selectedFile) + "\n";
+
+    // 获取命令中的文件名
+    QFileInfo fileInfo(command);
+    // 去除其后缀名
+    QString songName = fileInfo.baseName();
+    // 发送信号查找其歌词文件
+    emit loadLyricsSignal(songName);
 
     fifoMutex.lock();
     write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
@@ -430,12 +456,67 @@ void Widget::set_song_progress_Maximum(int maxvalue)
 
 void Widget::on_song_progress_changed(int newPosition)
 {
-        ui->song_progress->setValue(newPosition); // 更新滑动条位置
-        //QString command = QString("seek %1 2\n").arg(newPosition); // 发送新位置命令
-        //fifoMutex.lock();
-        //clearPipe(fd_pip[0]);
-        //write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
-        //fifoMutex.unlock();
+    ui->song_progress->setValue(newPosition); // 更新滑动条位置
+}
+
+void Widget::load_lyrics(const QString &songName)
+{
+    // 清空现有显示
+    ui->lyrics_list->clear();
+    // 清空之前存储的歌词
+    lyrics.clear();
+
+    QString filePath = "../lyrics/" + songName + ".lrc";
+    QFile file(filePath);
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        ui->lyrics_list->addItem("没有找到该歌曲歌词");
+        return ;
+    }
+
+    QTextStream in(&file);
+    QRegularExpression regex("\\[(\\d{2}):(\\d{2}).(\\d{2})\\](.*)");
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QRegularExpressionMatch match = regex.match(line);
+        if(match.hasMatch()){
+            int minutes = match.captured(1).toInt();
+            int seconds = match.captured(2).toInt();
+            int time = minutes * 60 + seconds;
+            QString text = match.captured(4);
+
+            LyricLine lyricLine {text, time};
+            lyrics.append(lyricLine);
+        }
+    }
+}
+
+void Widget::update_lyrics_dispaly(int currentTime)
+{
+    // 如果没有歌词，则不做任何操作
+    if(lyrics.isEmpty()) return;
+
+    int currentIndex = -1;
+    for (int i=0; i<lyrics.size(); i++) {
+        if(lyrics[i].time > currentTime) {
+            currentIndex = i - 1;
+            break;
+        }
+    }
+
+    ui->lyrics_list->clear();
+    int start = std::max(currentIndex - 5, 0);
+    int end = std::min(currentIndex + 5, lyrics.size() - 1);
+    for (int i = start; i <= end; i++) {
+        QListWidgetItem* item = new QListWidgetItem(lyrics[i].text);
+        if(i == currentIndex){
+            // 设置当前播放的歌词行的高亮样式
+            // 字体颜色为白色
+            item->setForeground(QBrush(Qt::white));
+            // 背景色为深蓝色
+            item->setBackground(QBrush(Qt::darkBlue));
+        }
+        ui->lyrics_list->addItem(item);
+    }
 }
 
 

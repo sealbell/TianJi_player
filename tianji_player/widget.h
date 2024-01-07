@@ -46,10 +46,6 @@ public:
 
     void clearPipe(int pipefd);
 
-//    // 函数声明
-//    QStringListModel *show_music_list(Widget *widget);
-//    friend void *get_time(void *arg);
-
 signals:
     void updateTimeSignal(QString time);
 
@@ -58,6 +54,10 @@ signals:
     void setMaximumSignal(int maxvalue);
 
     void progressChanged(int newPosition);
+
+    void loadLyricsSignal(const QString& songName);
+
+    void updateLyricsDisplaySignal(int currentTime);
 
 private slots:
     void on_song_list_clicked(const QModelIndex &index);
@@ -82,6 +82,10 @@ private slots:
 
     void on_song_progress_changed(int newPosition);
 
+    void load_lyrics(const QString& songName);
+
+    void update_lyrics_dispaly(int currentTime);
+
 private:
     Ui::Widget *ui;
     bool pauseThreads;// 共享状态变量
@@ -93,6 +97,11 @@ private:
     int fd_pip[2]; // 用于无名管道的文件描述符
     char *cmd;
     bool isMuted = false;//静音按钮
+    struct LyricLine{
+        QString text;// 歌词文本
+        int time;// 对应时间（秒）
+    };
+    QList<LyricLine> lyrics;// 存储歌词的列表
 };
 
 
