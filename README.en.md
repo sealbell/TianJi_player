@@ -1,36 +1,36 @@
-# Kangkang_player
+# Tianji Player
 
-#### Description
-一个播放器
+#### Introduction
+Tianji Player is a music player application that uses C++ and Qt for user interface design. This application allows users to play music files, control playback, and view lyrics.
 
-#### Software Architecture
-Software architecture description
+## Features
+- Play/Pause music
+- Navigate the playlist with Next and Previous buttons
+- Adjust volume
+- Display lyrics with the current line highlighted
 
-#### Installation
+## System Requirements
+- Linux Operating System
+- Qt 5.14.2 with GCC 64-bit
+- mplayer installation required
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Installation
+Before running Tianji Player on a Linux system, you need to install mplayer. This can be done through your distribution's package manager, for example:
+- Ubuntu: `sudo apt install mplayer`
+- Fedora: `sudo dnf install mplayer`
+- Arch Linux: `sudo pacman -S mplayer`
+Then, copy the `tianji-player` folder to your home directory and run the `make` command to compile the application.
 
-#### Instructions
+After installing mplayer, compile the Tianji Player using the built-in compiler of Qt Creator according to your Qt Creator configuration.
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Compilation
+Open the project in Qt Creator, configure it using the Desktop Qt 5.14.2 GCC 64bit kit, and build the project in Debug mode.
 
-#### Contribution
+## Execution
+Run the compiled `tianji_player` executable to start the player.
 
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
+## License
+Licensed under the MIT open source license.
 
-
-#### Gitee Feature
-
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+## Contact
+For support or to report issues, please contact the WeChat ID: zero_GK397. Remember to add a note, or you might be ignored.

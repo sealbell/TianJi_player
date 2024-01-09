@@ -1,37 +1,36 @@
-# Kangkang_player
+# 天机播放器
 
 #### 介绍
-一个播放器
+天机播放器是一个音乐播放应用，采用 C++ 语言和 Qt 用于用户界面设计。这个应用程序允许用户播放音乐文件、控制播放并查看歌词。
 
-#### 软件架构
-软件架构说明
+## 功能
+- 播放/暂停音乐
+- 通过下一曲和上一曲按钮导航播放列表
+- 调整音量
+- 显示歌词并高亮当前行
 
+## 系统要求
+- Linux 操作系统
+- Qt 5.14.2 使用 GCC 64位
+- 需要安装 mplayer
 
-#### 安装教程
+## 安装
+在 Linux 系统上运行天机播放器前，你需要安装 mplayer。通常可以通过你的发行版包管理器来完成，例如：
+- Ubuntu: `sudo apt install mplayer`
+- Fedora: `sudo dnf install mplayer`
+- Arch Linux: `sudo pacman -S mplayer`
+然后，将 `tianji-player` 文件夹复制到你的主目录中，并运行 `make` 命令来编译应用程序
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+安装完 mplayer 后，使用 Qt 创建者内置的编译器按照你的 Qt 创建者配置来编译天机播放器
 
-#### 使用说明
+## 编译
+在 Qt 创建者中打开项目，使用 Desktop Qt 5.14.2 GCC 64bit 工具包配置项目，并在 Debug 模式下构建项目。
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## 执行
+运行编译后的 `tianji_player` 可执行文件启动播放器。
 
-#### 参与贡献
+## 许可证
+使用MIT开源许可协议
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
-
-
-#### 特技
-
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+## 联系方式
+如需支持或报告问题，请联系微信号：zero_GK397。记得备注哦，不然可能会被忽略
