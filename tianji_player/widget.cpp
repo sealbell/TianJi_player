@@ -88,8 +88,8 @@ Widget::Widget(QWidget *parent)
             exit(1);
         }
 
-        // 此处可以通过 fd_fifo_cmd 写入命令到 mplayer
-        // 通过 fd_pip[0] 读取 mplayer 的输出
+        timer = new QTimer(this);
+        timer->setInterval(2000);  // 设置定时器为2秒
 
         // 创建线程
         pthread_create(&timeThread, NULL, updateTimeThread, this);
@@ -101,6 +101,9 @@ Widget::Widget(QWidget *parent)
         connect(this, &Widget::progressChanged, this, &Widget::on_song_progress_changed);
         connect(this, &Widget::loadLyricsSignal, this, &Widget::load_lyrics);
         connect(this, &Widget::updateLyricsDisplaySignal, this, &Widget::update_lyrics_dispaly);
+        connect(this, &Widget::wrStartSignal, this, &Widget::on_wr_start);
+        connect(this, &Widget::wrOverSignal, this, &Widget::on_wr_over);
+        connect(timer, &QTimer::timeout, this, &Widget::on_time_out);
 
         ui->frame_3->setStyleSheet("background-image: url(:/icon/icon/lyrics_background.jpg);");
         ui->lyrics_list->setStyleSheet("background: transparent;");
@@ -186,12 +189,13 @@ void* Widget::updateTimeThread(void* arg) {
         widget->pauseMutex.unlock();
         // 向 MPlayer 发送获取时间的指令
         widget->fifoMutex.lock();
+        emit widget->wrStartSignal();
         widget->clearPipe(widget->fd_pip[0]);
         write(widget->fifo_fd, "get_time_pos\n", strlen("get_time_pos\n"));
 
         // 从管道读取 MPlayer 的响应
         int nbytes = read(widget->fd_pip[0], buffer, sizeof(buffer) - 1);
-
+        emit widget->wrOverSignal();
         widget->fifoMutex.unlock();
 
         if (nbytes > 0) {
@@ -483,20 +487,32 @@ void Widget::load_lyrics(const QString &songName)
     }
 
     QTextStream in(&file);
-    QRegularExpression regex("\\[(\\d{2}):(\\d{2}).(\\d{2})\\](.*)");
+    QRegularExpression regex("\\[(\\d{2}):(\\d{2}).(\\d{2})\\]");
+    QRegularExpression regexForTimeRemove("\\[(\\d{2}):(\\d{2}).(\\d{2})\\]");
     while (!in.atEnd()) {
         QString line = in.readLine();
-        QRegularExpressionMatch match = regex.match(line);
-        if(match.hasMatch()){
+        QRegularExpressionMatchIterator it = regex.globalMatch(line);
+        // 歌词文本，移除所有时间标签
+        QString text = line;
+        text.remove(regexForTimeRemove).trimmed();
+
+        // 遍历所有时间戳
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
             int minutes = match.captured(1).toInt();
             int seconds = match.captured(2).toInt();
-            int time = minutes * 60 + seconds;
-            QString text = match.captured(4);
-
+            int milliseconds = match.captured(3).toInt(); // 保留毫秒，可能用于后续逻辑
+            int time = minutes * 60 + seconds; // 时间转换为秒
+            // 创建歌词行结构体
             LyricLine lyricLine {text, time};
             lyrics.append(lyricLine);
         }
     }
+
+    // 确保歌词按时间排序
+    std::sort(lyrics.begin(), lyrics.end(), [](const LyricLine &a, const LyricLine &b) {
+        return a.time < b.time;
+    });
 }
 
 void Widget::update_lyrics_dispaly(int currentTime)
@@ -528,7 +544,34 @@ void Widget::update_lyrics_dispaly(int currentTime)
     }
 }
 
+void Widget::on_wr_start() {
+    timer->start();  // 开始计时
+}
 
+void Widget::on_wr_over() {
+    timer->stop();  // 停止计时器
+}
+
+void Widget::on_time_out() {
+    // 暂停播放器的逻辑
+    // 更改按钮状态，重置线程，更新共享变量等
+
+    // 将线程取消
+    pthread_cancel(timeThread);
+
+    ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/播放)}");
+    ui->control_btn->setToolTip("播放");
+    btn_status = 0;
+    pauseMutex.lock();
+    pauseThreads = 1;
+    pauseMutex.unlock();
+
+    pthread_join(timeThread,NULL);
+
+    fifoMutex.unlock();
+
+    pthread_create(&timeThread, NULL, updateTimeThread, this);
+}
 
 
 

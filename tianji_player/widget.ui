@@ -342,6 +342,12 @@
       <height>71</height>
      </rect>
     </property>
+    <property name="maximum">
+     <number>100</number>
+    </property>
+    <property name="value">
+     <number>80</number>
+    </property>
     <property name="orientation">
      <enum>Qt::Vertical</enum>
     </property>
@@ -369,9 +375,9 @@
     <property name="geometry">
      <rect>
       <x>100</x>
-      <y>70</y>
+      <y>40</y>
       <width>831</width>
-      <height>591</height>
+      <height>651</height>
      </rect>
     </property>
     <property name="font">

@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QString>
 #include <QMutex>
+#include <QTimer>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -59,6 +60,12 @@ signals:
 
     void updateLyricsDisplaySignal(int currentTime);
 
+    void wrStartSignal();
+
+    void wrOverSignal();
+
+    void timeOutSignal();
+
 private slots:
     void on_song_list_clicked(const QModelIndex &index);
 
@@ -86,6 +93,12 @@ private slots:
 
     void update_lyrics_dispaly(int currentTime);
 
+    void on_wr_start();
+
+    void on_wr_over();
+
+    void on_time_out();
+
 private:
     Ui::Widget *ui;
     bool pauseThreads;// 共享状态变量
@@ -102,6 +115,8 @@ private:
         int time;// 对应时间（秒）
     };
     QList<LyricLine> lyrics;// 存储歌词的列表
+
+    QTimer *timer;
 };
 
 
