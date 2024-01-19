@@ -22,8 +22,7 @@ pid_t ch_id;
 QStringListModel *show_music_list(Widget *widget);
 
 Widget::Widget(QWidget *parent)
-    : QWidget(parent)
-    , ui(new Ui::Widget)
+    : QWidget(parent), ui(new Ui::Widget)
 {
     // 显示ui
     ui->setupUi(this);
@@ -33,32 +32,36 @@ Widget::Widget(QWidget *parent)
 
     int fd_fifo_cmd;
     pid_t pid;
-    const char* fifo_cmd = "./fifo_cmd";
-    cmd = (char*)calloc(1024,sizeof (char));
+    const char *fifo_cmd = "./fifo_cmd";
+    cmd = (char *)calloc(1024, sizeof(char));
 
     // 创建有名管道
     mkfifo(fifo_cmd, 0666);
 
-     // 创建无名管道
-     if (pipe(fd_pip) == -1) {
-         perror("pipe");
-         exit(1);
-     }
+    // 创建无名管道
+    if (pipe(fd_pip) == -1)
+    {
+        perror("pipe");
+        exit(1);
+    }
 
-     // 创建子进程
-     pid = fork();
-     if (pid == -1) {
+    // 创建子进程
+    pid = fork();
+    if (pid == -1)
+    {
         perror("fork");
         exit(1);
-     }
+    }
 
-     if (pid == 0) { // 子进程
+    if (pid == 0)
+    { // 子进程
         // 关闭无名管道的读端
         ::close(fd_pip[0]);
 
         // 打开有名管道的读端
         fd_fifo_cmd = open(fifo_cmd, O_RDONLY);
-        if (fd_fifo_cmd == -1) {
+        if (fd_fifo_cmd == -1)
+        {
             perror("open");
             exit(1);
         }
@@ -75,7 +78,9 @@ Widget::Widget(QWidget *parent)
         execlp("mplayer", "mplayer", "-slave", "-quiet", "-idle", NULL);
         perror("execlp");
         exit(1);
-    } else { // 父进程
+    }
+    else
+    { // 父进程
         ch_id = pid;
 
         // 关闭无名管道的写端
@@ -83,13 +88,14 @@ Widget::Widget(QWidget *parent)
 
         // 打开有名管道
         fifo_fd = open("./fifo_cmd", O_WRONLY);
-        if (fifo_fd == -1) {
+        if (fifo_fd == -1)
+        {
             perror("open");
             exit(1);
         }
 
         timer = new QTimer(this);
-        timer->setInterval(2000);  // 设置定时器为2秒
+        timer->setInterval(2000); // 设置定时器为2秒
 
         // 创建线程
         pthread_create(&timeThread, NULL, updateTimeThread, this);
@@ -114,17 +120,21 @@ Widget::Widget(QWidget *parent)
 Widget::~Widget()
 {
     delete ui;
-    kill(ch_id,9);
+    kill(ch_id, 9);
     // 关闭有名管道
-    if (fifo_fd != -1) {
+    if (fifo_fd != -1)
+    {
         ::close(fifo_fd);
     }
 }
 
-QStringListModel *show_music_list(Widget *widget){
+QStringListModel *show_music_list(Widget *widget)
+{
     QDir musicDir("../song");
     // 过滤出音频文件
-    QStringList audioFiles = musicDir.entryList(QStringList() << "*.mp3" << "*.wav", QDir::Files);
+    QStringList audioFiles = musicDir.entryList(QStringList() << "*.mp3"
+                                                              << "*.wav",
+                                                QDir::Files);
 
     // 创建一个模型并将文件列表填充到模型中
     model = new QStringListModel(widget);
@@ -135,11 +145,11 @@ QStringListModel *show_music_list(Widget *widget){
 
 void Widget::on_song_list_clicked(const QModelIndex &index)
 {
-    //修改为播放状态
+    // 修改为播放状态
     pauseMutex.lock();
     pauseThreads = 0;
     pauseMutex.unlock();
-    //将按钮变为暂停按钮
+    // 将按钮变为暂停按钮
     btn_status = 1;
     ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
     ui->control_btn->setToolTip("暂停");
@@ -158,7 +168,7 @@ void Widget::on_song_list_clicked(const QModelIndex &index)
     // 发送信号查找其歌词文件
     emit loadLyricsSignal(songName);
 
-    char* cmd = command.toUtf8().data();
+    char *cmd = command.toUtf8().data();
     // 向有名管道写入命令
     fifoMutex.lock();
     clearPipe(fd_pip[0]);
@@ -166,23 +176,26 @@ void Widget::on_song_list_clicked(const QModelIndex &index)
     fifoMutex.unlock();
 
     // 处理选中的文件，例如播放音乐
-    printf("%s",cmd);
+    printf("%s", cmd);
     fflush(stdout);
 
     emit songChanged();
 }
 
-void* Widget::updateTimeThread(void* arg) {
-    Widget* widget = static_cast<Widget*>(arg);
+void *Widget::updateTimeThread(void *arg)
+{
+    Widget *widget = static_cast<Widget *>(arg);
     char buffer[1024];
-    while (true) {
-        //将互斥锁锁住，防止冲突
+    while (true)
+    {
+        // 将互斥锁锁住，防止冲突
         widget->pauseMutex.lock();
-        //判断共享状态变量
-        if(widget->pauseThreads){
-            //解锁
+        // 判断共享状态变量
+        if (widget->pauseThreads)
+        {
+            // 解锁
             widget->pauseMutex.unlock();
-            //挂起一段时间，防止快速循环
+            // 挂起一段时间，防止快速循环
             sleep(1);
             continue;
         }
@@ -198,13 +211,15 @@ void* Widget::updateTimeThread(void* arg) {
         emit widget->wrOverSignal();
         widget->fifoMutex.unlock();
 
-        if (nbytes > 0) {
+        if (nbytes > 0)
+        {
             buffer[nbytes] = '\0';
 
             // 解析时间
             QString response(buffer);
             int timePos = response.indexOf("ANS_TIME_POSITION=");
-            if (timePos != -1) {
+            if (timePos != -1)
+            {
                 QString timeStr = response.mid(timePos + 18).split("\n")[0];
                 float timeVal = timeStr.toFloat();
 
@@ -214,11 +229,11 @@ void* Widget::updateTimeThread(void* arg) {
                 int minutes = static_cast<int>(timeVal) / 60;
                 int seconds = static_cast<int>(timeVal) % 60;
                 QString formattedTime = QString("%1:%2")
-                        .arg(minutes, 2, 10, QLatin1Char('0'))
-                        .arg(seconds, 2, 10, QLatin1Char('0'));
+                                            .arg(minutes, 2, 10, QLatin1Char('0'))
+                                            .arg(seconds, 2, 10, QLatin1Char('0'));
 
-            // 发射信号以更新UI
-            emit widget->updateTimeSignal(formattedTime);
+                // 发射信号以更新UI
+                emit widget->updateTimeSignal(formattedTime);
             }
         }
         sleep(1); // 每秒更新一次
@@ -228,10 +243,11 @@ void* Widget::updateTimeThread(void* arg) {
 
 int Widget::parseTotalTime(const QString &response)
 {
-    //MPlayer的响应格式为"ANS_LENGTH=duration"
+    // MPlayer的响应格式为"ANS_LENGTH=duration"
     QRegExp regex("ANS_LENGTH=(\\d+\\.\\d+)");
-    if(regex.indexIn(response) != -1){
-        //将持续时间字符串转换为浮点，然后转换为int
+    if (regex.indexIn(response) != -1)
+    {
+        // 将持续时间字符串转换为浮点，然后转换为int
         return static_cast<int>(regex.cap(1).toFloat());
     }
     return 0;
@@ -243,8 +259,8 @@ QString Widget::formatTime(int totalSeconds)
     int seconds = totalSeconds % 60;
 
     return QString("%1:%2")
-            .arg(minutes,2,10,QChar('0'))
-            .arg(seconds,2,10,QChar('0'));
+        .arg(minutes, 2, 10, QChar('0'))
+        .arg(seconds, 2, 10, QChar('0'));
 }
 
 void Widget::clearPipe(int pipefd)
@@ -255,7 +271,8 @@ void Widget::clearPipe(int pipefd)
 
     // 清空管道
     char buffer[1024];
-    while (read(pipefd, buffer, sizeof(buffer)) > 0) {
+    while (read(pipefd, buffer, sizeof(buffer)) > 0)
+    {
         // 继续读取直到没有更多数据
     }
 
@@ -263,7 +280,8 @@ void Widget::clearPipe(int pipefd)
     fcntl(pipefd, F_SETFL, flags);
 }
 
-void Widget::updateTimeUI(QString time) {
+void Widget::updateTimeUI(QString time)
+{
     // 在这里更新 UI
     // 例如：ui->currentTimeLabel->setText(time);
     ui->current_time->setText(time);
@@ -271,7 +289,8 @@ void Widget::updateTimeUI(QString time) {
 
 void Widget::on_control_btn_clicked()
 {
-    if(btn_status == 1){
+    if (btn_status == 1)
+    {
         ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/播放)}");
         ui->control_btn->setToolTip("播放");
         btn_status = 0;
@@ -279,7 +298,8 @@ void Widget::on_control_btn_clicked()
         pauseThreads = 1;
         pauseMutex.unlock();
     }
-    else{
+    else
+    {
         ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
         ui->control_btn->setToolTip("暂停");
         btn_status = 1;
@@ -289,18 +309,19 @@ void Widget::on_control_btn_clicked()
     }
     fifoMutex.lock();
 
-    strcpy(cmd,"pause\n");
+    strcpy(cmd, "pause\n");
     clearPipe(fd_pip[0]);
-    write(fifo_fd,cmd,strlen(cmd));
+    write(fifo_fd, cmd, strlen(cmd));
     fifoMutex.unlock();
-    printf("%s",cmd);
+    printf("%s", cmd);
     fflush(stdout);
 }
 
 void Widget::on_previous_btn_clicked()
 {
     int currentRow = ui->song_list->currentIndex().row();
-    if (currentRow <= 0) return;  // 没有播放音乐或已是第一首歌
+    if (currentRow <= 0)
+        return; // 没有播放音乐或已是第一首歌
 
     // 选择上一首歌
     QModelIndex previousIndex = ui->song_list->model()->index(currentRow - 1, 0);
@@ -317,13 +338,13 @@ void Widget::on_previous_btn_clicked()
     // 发送信号查找其歌词文件
     emit loadLyricsSignal(songName);
 
-    //strcpy(cmd,command.toUtf8().constData());
+    // strcpy(cmd,command.toUtf8().constData());
     fifoMutex.lock();
     clearPipe(fd_pip[0]);
     write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
     fifoMutex.unlock();
 
-    printf("%s",command.toUtf8().constData());
+    printf("%s", command.toUtf8().constData());
     fflush(stdout);
 
     emit songChanged();
@@ -333,7 +354,8 @@ void Widget::on_next_btn_clicked()
 {
     int currentRow = ui->song_list->currentIndex().row();
     int totalRows = ui->song_list->model()->rowCount();
-    if (currentRow < 0 || currentRow >= totalRows - 1) return;  // 没有播放音乐或已是最后一首歌
+    if (currentRow < 0 || currentRow >= totalRows - 1)
+        return; // 没有播放音乐或已是最后一首歌
 
     // 选择下一首歌
     QModelIndex nextIndex = ui->song_list->model()->index(currentRow + 1, 0);
@@ -354,7 +376,7 @@ void Widget::on_next_btn_clicked()
     write(fifo_fd, command.toUtf8().constData(), command.toUtf8().length());
     fifoMutex.unlock();
 
-    printf("%s",command.toUtf8().constData());
+    printf("%s", command.toUtf8().constData());
     fflush(stdout);
 
     emit songChanged();
@@ -362,12 +384,13 @@ void Widget::on_next_btn_clicked()
 
 void Widget::updateTotalTimeUI()
 {
-    const char* command = "get_time_length\n";
+    const char *command = "get_time_length\n";
     QString response;
     int tryCount = 0;
     const int maxTries = 10; // 重试次数上限
 
-    while (tryCount < maxTries) {
+    while (tryCount < maxTries)
+    {
         fifoMutex.lock();
         clearPipe(fd_pip[0]); // 清空管道中的信息
         write(fifo_fd, command, strlen(command));
@@ -376,10 +399,12 @@ void Widget::updateTotalTimeUI()
         ssize_t nbytes = read(fd_pip[0], buffer, sizeof(buffer) - 1);
         fifoMutex.unlock();
 
-        if (nbytes > 0) {
+        if (nbytes > 0)
+        {
             buffer[nbytes] = '\0';
             response = QString(buffer);
-            if (response.contains("ANS_LENGTH=")) {
+            if (response.contains("ANS_LENGTH="))
+            {
                 break; // 成功获取到响应
             }
         }
@@ -388,11 +413,12 @@ void Widget::updateTotalTimeUI()
         sleep(1); // 短暂等待再次尝试
     }
 
-    if (!response.isEmpty()) {
+    if (!response.isEmpty())
+    {
         int totalTime = parseTotalTime(response); // 解析时长
         emit setMaximumSignal(totalTime);
         QString formattedTime = formatTime(totalTime); // 格式化时长
-        ui->all_time->setText(formattedTime); // 更新 UI
+        ui->all_time->setText(formattedTime);          // 更新 UI
     }
 }
 
@@ -400,12 +426,15 @@ void Widget::on_sound_btn_clicked()
 {
     const char *command = NULL;
     // 检查当前是否已经静音
-    if (isMuted) {
+    if (isMuted)
+    {
         // 如果已经静音，取消静音并更改按钮样式
         ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/音量); }");
         command = "mute 0\n"; // 发送取消静音命令
         isMuted = false;
-    } else {
+    }
+    else
+    {
         // 如果未静音，设置静音并更改按钮样式
         ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/静音); }");
         command = "mute 1\n"; // 发送静音命令
@@ -428,11 +457,14 @@ void Widget::on_sound_slider_valueChanged(int value)
     fifoMutex.unlock();
 
     // 根据音量值更改按钮图标
-    if (value == 0) {
+    if (value == 0)
+    {
         // 静音
         ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/静音); }");
         isMuted = true;
-    } else {
+    }
+    else
+    {
         // 非静音
         ui->sound_btn->setStyleSheet("QPushButton { image: url(:/icon/音量); }");
         isMuted = false;
@@ -441,11 +473,11 @@ void Widget::on_sound_slider_valueChanged(int value)
 
 void Widget::on_song_progress_sliderReleased()
 {
-    //修改为播放状态
+    // 修改为播放状态
     pauseMutex.lock();
     pauseThreads = 0;
     pauseMutex.unlock();
-    //将按钮变为暂停按钮
+    // 将按钮变为暂停按钮
     btn_status = 1;
     ui->control_btn->setStyleSheet("QPushButton{image: url(:/icon/暂停)}");
     ui->control_btn->setToolTip("暂停");
@@ -481,15 +513,17 @@ void Widget::load_lyrics(const QString &songName)
 
     QString filePath = "../lyrics/" + songName + ".lrc";
     QFile file(filePath);
-    if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
         ui->lyrics_list->addItem("没有找到该歌曲歌词");
-        return ;
+        return;
     }
 
     QTextStream in(&file);
     QRegularExpression regex("\\[(\\d{2}):(\\d{2}).(\\d{2})\\]");
     QRegularExpression regexForTimeRemove("\\[(\\d{2}):(\\d{2}).(\\d{2})\\]");
-    while (!in.atEnd()) {
+    while (!in.atEnd())
+    {
         QString line = in.readLine();
         QRegularExpressionMatchIterator it = regex.globalMatch(line);
         // 歌词文本，移除所有时间标签
@@ -497,32 +531,35 @@ void Widget::load_lyrics(const QString &songName)
         text.remove(regexForTimeRemove).trimmed();
 
         // 遍历所有时间戳
-        while (it.hasNext()) {
+        while (it.hasNext())
+        {
             QRegularExpressionMatch match = it.next();
             int minutes = match.captured(1).toInt();
             int seconds = match.captured(2).toInt();
             int milliseconds = match.captured(3).toInt(); // 保留毫秒，可能用于后续逻辑
-            int time = minutes * 60 + seconds; // 时间转换为秒
+            int time = minutes * 60 + seconds;            // 时间转换为秒
             // 创建歌词行结构体
-            LyricLine lyricLine {text, time};
+            LyricLine lyricLine{text, time};
             lyrics.append(lyricLine);
         }
     }
 
     // 确保歌词按时间排序
-    std::sort(lyrics.begin(), lyrics.end(), [](const LyricLine &a, const LyricLine &b) {
-        return a.time < b.time;
-    });
+    std::sort(lyrics.begin(), lyrics.end(), [](const LyricLine &a, const LyricLine &b)
+              { return a.time < b.time; });
 }
 
 void Widget::update_lyrics_dispaly(int currentTime)
 {
     // 如果没有歌词，则不做任何操作
-    if(lyrics.isEmpty()) return;
+    if (lyrics.isEmpty())
+        return;
 
     int currentIndex = -1;
-    for (int i=0; i<lyrics.size(); i++) {
-        if(lyrics[i].time > currentTime) {
+    for (int i = 0; i < lyrics.size(); i++)
+    {
+        if (lyrics[i].time > currentTime)
+        {
             currentIndex = i - 1;
             break;
         }
@@ -531,9 +568,11 @@ void Widget::update_lyrics_dispaly(int currentTime)
     ui->lyrics_list->clear();
     int start = std::max(currentIndex - 5, 0);
     int end = std::min(currentIndex + 5, lyrics.size() - 1);
-    for (int i = start; i <= end; i++) {
-        QListWidgetItem* item = new QListWidgetItem(lyrics[i].text);
-        if(i == currentIndex){
+    for (int i = start; i <= end; i++)
+    {
+        QListWidgetItem *item = new QListWidgetItem(lyrics[i].text);
+        if (i == currentIndex)
+        {
             // 设置当前播放的歌词行的高亮样式
             // 字体颜色为白色
             item->setForeground(QBrush(Qt::white));
@@ -544,15 +583,18 @@ void Widget::update_lyrics_dispaly(int currentTime)
     }
 }
 
-void Widget::on_wr_start() {
-    timer->start();  // 开始计时
+void Widget::on_wr_start()
+{
+    timer->start(); // 开始计时
 }
 
-void Widget::on_wr_over() {
-    timer->stop();  // 停止计时器
+void Widget::on_wr_over()
+{
+    timer->stop(); // 停止计时器
 }
 
-void Widget::on_time_out() {
+void Widget::on_time_out()
+{
     // 暂停播放器的逻辑
     // 更改按钮状态，重置线程，更新共享变量等
 
@@ -566,16 +608,9 @@ void Widget::on_time_out() {
     pauseThreads = 1;
     pauseMutex.unlock();
 
-    pthread_join(timeThread,NULL);
+    pthread_join(timeThread, NULL);
 
     fifoMutex.unlock();
 
     pthread_create(&timeThread, NULL, updateTimeThread, this);
 }
-
-
-
-
-
-
-
